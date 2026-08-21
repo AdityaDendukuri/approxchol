@@ -1,5 +1,5 @@
 #include "approxchol/solve.h"
-#include "random_matrix.h"
+#include "random_graph.h"
 
 #include <chrono>
 #include <cstdlib>
@@ -17,16 +17,16 @@ int main(int argc, char **argv) {
   approxchol::idx n = std::stoull(argv[1]);
   int repeats = (argc >= 3) ? std::atoi(argv[2]) : 5;
 
-  approxchol::SparseMatrix A = approxchol::make_random_laplacian(n, 6, 2, 42);
+  approxchol::Graph G = approxchol::make_random_laplacian(n, 6, 42);
 
   // Warmup
-  auto f1_w = approxchol::ac1(A, 42);
-  auto f2_w = approxchol::ac2(A, 42);
+  auto f1_w = approxchol::ac1(G, 42);
+  auto f2_w = approxchol::ac2(G, 42);
 
   std::vector<double> ac1_ms(repeats);
   for (int r = 0; r < repeats; ++r) {
     auto t0 = std::chrono::high_resolution_clock::now();
-    auto f = approxchol::ac1(A, 42 + r);
+    auto f = approxchol::ac1(G, 42 + r);
     auto t1 = std::chrono::high_resolution_clock::now();
     ac1_ms[r] = std::chrono::duration<double, std::milli>(t1 - t0).count();
   }
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
   std::vector<double> ac2_ms(repeats);
   for (int r = 0; r < repeats; ++r) {
     auto t0 = std::chrono::high_resolution_clock::now();
-    auto f = approxchol::ac2(A, 42 + r);
+    auto f = approxchol::ac2(G, 42 + r);
     auto t1 = std::chrono::high_resolution_clock::now();
     ac2_ms[r] = std::chrono::duration<double, std::milli>(t1 - t0).count();
   }

@@ -1,5 +1,5 @@
-#include "approxchol/column_queue.h"
-#include "approxchol/matrix.h"
+#include "approxchol/degree_queue.h"
+#include "approxchol/graph.h"
 #include "approxchol/solve.h"
 
 #include <cmath>
@@ -18,9 +18,9 @@ void check(bool condition, const char *msg) {
   }
 }
 
-approxchol::SparseMatrix make_grid_laplacian(idx rows, idx cols, idx k_split) {
+approxchol::Graph make_grid_laplacian(idx rows, idx cols) {
   const idx n = rows * cols;
-  approxchol::SparseMatrix A(n);
+  approxchol::Graph G(n);
 
   auto index = [cols](idx r, idx c) { return r * cols + c; };
 
@@ -28,32 +28,32 @@ approxchol::SparseMatrix make_grid_laplacian(idx rows, idx cols, idx k_split) {
     for (idx c = 0; c < cols; ++c) {
       idx u = index(r, c);
       if (c + 1 < cols) {
-        approxchol::add_connection(A, u, index(r, c + 1), 1.0, k_split);
+        approxchol::add_edge(G, u, index(r, c + 1), 1.0);
       }
       if (r + 1 < rows) {
-        approxchol::add_connection(A, u, index(r + 1, c), 1.0, k_split);
+        approxchol::add_edge(G, u, index(r + 1, c), 1.0);
       }
     }
   }
 
-  return A;
+  return G;
 }
 
 std::vector<std::vector<double>>
-dense_from_sparse(const approxchol::SparseMatrix &A) {
-  const idx n = A.size();
-  std::vector<std::vector<double>> M(n, std::vector<double>(n, 0.0));
+dense_from_graph(const approxchol::Graph &G) {
+  const idx n = G.size();
+  std::vector<std::vector<double>> A(n, std::vector<double>(n, 0.0));
 
   for (idx u = 0; u < n; ++u) {
     double diag = 0.0;
-    for (const auto &e : A[u]) {
-      M[u][e.row] -= e.val;
-      diag += e.val;
+    for (const auto &e : G[u]) {
+      A[u][e.to] -= e.weight;
+      diag += e.weight;
     }
-    M[u][u] = diag;
+    A[u][u] = diag;
   }
 
-  return M;
+  return A;
 }
 
 void test_exact_factorization() {
@@ -61,10 +61,10 @@ void test_exact_factorization() {
   const idx cols = 4;
   const idx n = rows * cols;
 
-  approxchol::SparseMatrix A = make_grid_laplacian(rows, cols, 2);
-  auto A_dense = dense_from_sparse(A);
+  approxchol::Graph G = make_grid_laplacian(rows, cols);
+  auto A_dense = dense_from_graph(G);
 
-  approxchol::CholeskyFactor F = approxchol::exact(A);
+  approxchol::CholeskyFactor F = approxchol::exact(G);
 
   std::vector<idx> pos(n);
   for (idx step = 0; step < n; ++step) {
@@ -96,11 +96,10 @@ void test_ac1_and_ac2_factorization() {
   const idx cols = 4;
   const idx n = rows * cols;
 
-  approxchol::SparseMatrix A1 = make_grid_laplacian(rows, cols, 1);
-  approxchol::SparseMatrix A2 = make_grid_laplacian(rows, cols, 2);
+  approxchol::Graph G = make_grid_laplacian(rows, cols);
 
-  approxchol::CholeskyFactor F1 = approxchol::ac1(A1, /*seed=*/42);
-  approxchol::CholeskyFactor F2 = approxchol::ac2(A2, /*seed=*/42);
+  approxchol::CholeskyFactor F1 = approxchol::ac1(G, /*seed=*/42);
+  approxchol::CholeskyFactor F2 = approxchol::ac2(G, /*seed=*/42);
 
   check(F1.columns.size() == n, "AC1 factor column count mismatch");
   check(F2.columns.size() == n, "AC2 factor column count mismatch");
@@ -113,16 +112,15 @@ void test_full_factor_expectation() {
   const idx cols = 3;
   const idx n = rows * cols;
   const idx trials = 3000;
-  const idx samples = 2;
 
-  approxchol::SparseMatrix A = make_grid_laplacian(rows, cols, samples);
-  auto A_dense = dense_from_sparse(A);
+  approxchol::Graph G = make_grid_laplacian(rows, cols);
+  auto A_dense = dense_from_graph(G);
 
   std::vector<std::vector<double>> E_LLt(n, std::vector<double>(n, 0.0));
   std::mt19937_64 rng(123);
 
   for (idx t = 0; t < trials; ++t) {
-    approxchol::CholeskyFactor F = approxchol::ac2(A, rng);
+    approxchol::CholeskyFactor F = approxchol::ac2(G, rng);
 
     std::vector<idx> pos(n);
     for (idx step = 0; step < n; ++step) {

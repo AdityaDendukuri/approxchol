@@ -1,6 +1,6 @@
 #pragma once
 
-#include "approxchol/matrix.h"
+#include "approxchol/graph.h"
 
 #include <cstdint>
 #include <random>
@@ -22,17 +22,17 @@ struct CholeskyFactor {
   std::vector<idx> order;
 };
 
-CholeskyFactor factorize(const SparseMatrix &A, idx samples = 2,
+CholeskyFactor factorize(const Graph &G, idx samples = 1,
                          bool exact_mode = false,
                          std::mt19937_64 *rng = nullptr);
 
-CholeskyFactor ac1(const SparseMatrix &A, std::uint64_t seed = 42);
-CholeskyFactor ac1(const SparseMatrix &A, std::mt19937_64 &rng);
+CholeskyFactor ac1(const Graph &G, std::uint64_t seed = 42);
+CholeskyFactor ac1(const Graph &G, std::mt19937_64 &rng);
 
-CholeskyFactor ac2(const SparseMatrix &A, std::uint64_t seed = 42);
-CholeskyFactor ac2(const SparseMatrix &A, std::mt19937_64 &rng);
+CholeskyFactor ac2(const Graph &G, std::uint64_t seed = 42);
+CholeskyFactor ac2(const Graph &G, std::mt19937_64 &rng);
 
-CholeskyFactor exact(const SparseMatrix &A);
+CholeskyFactor exact(const Graph &G);
 
 double get_entry(const CholeskyFactor &F, idx row, idx col);
 

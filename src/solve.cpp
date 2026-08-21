@@ -1,5 +1,5 @@
 #include "approxchol/solve.h"
-#include "approxchol/column_queue.h"
+#include "approxchol/degree_queue.h"
 
 #include <cmath>
 #include <cstdint>
@@ -8,14 +8,14 @@ namespace approxchol {
 
 namespace {
 
-void write_column(idx col, idx step, double diag_sum,
-                  const std::vector<ColumnNonzero> &nonzeros,
-                  CholeskyFactor &factor) {
-  const double sqrt_diag = std::sqrt(diag_sum);
+void write_column(idx v, idx step, double total_weight,
+                  const std::vector<Neighbor> &nbr, CholeskyFactor &factor) {
+  const double sqrt_total = std::sqrt(total_weight);
 
-  factor.columns[step].entries.push_back({col, sqrt_diag});
-  for (const auto &nz : nonzeros) {
-    factor.columns[step].entries.push_back({nz.row, -nz.val / sqrt_diag});
+  factor.columns[step].entries.push_back({v, sqrt_total});
+  for (const auto &n_info : nbr) {
+    factor.columns[step].entries.push_back(
+        {n_info.to, -n_info.weight / sqrt_total});
   }
 }
 
@@ -36,74 +36,83 @@ void permute_rows(CholeskyFactor &factor) {
 
 } // namespace
 
-CholeskyFactor factorize(const SparseMatrix &input_A, idx samples,
+CholeskyFactor factorize(const Graph &input_G, idx samples,
                          bool exact_mode, std::mt19937_64 *rng) {
-  const idx n = input_A.size();
-  SparseMatrix A = input_A;
-  ColumnQueue q(A);
+  const idx n = input_G.size();
+  Graph G = input_G;
 
-  std::vector<std::uint8_t> eliminated(n, 0);
+  if (samples > 1 && !exact_mode) {
+    for (auto &row : G) {
+      for (auto &e : row) {
+        e.count = static_cast<std::uint8_t>(samples);
+      }
+    }
+  }
+
+  DegreeQueue q(G);
+
+  std::vector<std::uint8_t> done(n, 0);
 
   CholeskyFactor factor;
   factor.columns.resize(n);
   factor.order.reserve(n);
 
-  std::vector<MatrixEntry> col_buf;
-  std::vector<ColumnNonzero> nonzeros_buf;
+  std::vector<Edge> star_buf;
+  std::vector<Neighbor> nbr_buf;
 
   std::mt19937_64 local_rng(42);
   std::mt19937_64 &active_rng = rng ? *rng : local_rng;
 
   for (idx step = 0; step + 1 < n; ++step) {
-    const idx col = q.pop_min();
-    factor.order.push_back(col);
+    const idx v = q.pop_min();
+    factor.order.push_back(v);
 
-    double diag_sum =
-        extract_column(col, A, eliminated, q, col_buf, nonzeros_buf);
-    eliminated[col] = 1;
+    double total_weight =
+        collect_neighbors(v, G, done, q, star_buf, nbr_buf);
+    done[v] = 1;
 
-    if (diag_sum <= 0.0) {
+    if (total_weight <= 0.0) {
       continue;
     }
 
-    write_column(col, step, diag_sum, nonzeros_buf, factor);
+    write_column(v, step, total_weight, nbr_buf, factor);
 
     if (exact_mode) {
-      exact_outer_product(A, q, nonzeros_buf, diag_sum);
+      add_exact_clique(G, q, nbr_buf, total_weight);
     } else {
-      sample_outer_product(A, q, nonzeros_buf, diag_sum, samples, active_rng);
+      sample_clique(G, q, nbr_buf, total_weight, samples, active_rng);
     }
   }
 
-  // Nullspace column
-  const idx last_col = q.pop_min();
-  factor.order.push_back(last_col);
+  // Nullspace vertex
+  const idx last_v = q.pop_min();
+  factor.order.push_back(last_v);
 
   permute_rows(factor);
 
   return factor;
 }
 
-CholeskyFactor ac1(const SparseMatrix &A, std::uint64_t seed) {
+CholeskyFactor ac1(const Graph &G, std::uint64_t seed) {
   std::mt19937_64 rng(seed);
-  return factorize(A, 1, false, &rng);
+  return factorize(G, 1, false, &rng);
 }
 
-CholeskyFactor ac1(const SparseMatrix &A, std::mt19937_64 &rng) {
-  return factorize(A, 1, false, &rng);
+CholeskyFactor ac1(const Graph &G, std::mt19937_64 &rng) {
+  return factorize(G, 1, false, &rng);
 }
 
-CholeskyFactor ac2(const SparseMatrix &A, std::uint64_t seed) {
+CholeskyFactor ac2(const Graph &G, std::uint64_t seed) {
   std::mt19937_64 rng(seed);
-  return factorize(A, 2, false, &rng);
+  return factorize(G, 2, false, &rng);
 }
 
-CholeskyFactor ac2(const SparseMatrix &A, std::mt19937_64 &rng) {
-  return factorize(A, 2, false, &rng);
+CholeskyFactor ac2(const Graph &G, std::mt19937_64 &rng) {
+  return factorize(G, 2, false, &rng);
 }
 
-CholeskyFactor exact(const SparseMatrix &A) {
-  return factorize(A, 1, true, nullptr);
+CholeskyFactor exact(const Graph &G) {
+  return factorize(G, 1, true, nullptr);
 }
 
 double get_entry(const CholeskyFactor &F, idx row, idx col) {

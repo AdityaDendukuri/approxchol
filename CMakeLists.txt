@@ -10,8 +10,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_library(approxchol
-  src/column_queue.cpp
-  src/matrix.cpp
+  src/degree_queue.cpp
+  src/graph.cpp
   src/solve.cpp
 )
 
