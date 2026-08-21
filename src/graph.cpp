@@ -78,6 +78,7 @@ void sample_clique(Graph &G, DegreeQueue &q,
   });
 
   double rest = total_weight;
+  std::uniform_real_distribution<double> unit_dist(0.0, 1.0);
 
   for (idx a = 0; a + 1 < nbr.size(); ++a) {
     const auto &nbr_a = nbr[a];
@@ -92,8 +93,7 @@ void sample_clique(Graph &G, DegreeQueue &q,
     const double w_new = w_bar * (rest / total_weight);
 
     for (idx s = 0; s < draws; ++s) {
-      std::uniform_real_distribution<double> dist(0.0, rest);
-      double target = dist(rng);
+      double target = unit_dist(rng) * rest;
 
       idx b = a + 1;
       while (b + 1 < nbr.size() && target >= nbr[b].weight) {

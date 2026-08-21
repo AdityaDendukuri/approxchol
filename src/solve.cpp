@@ -12,10 +12,11 @@ void write_column(idx v, idx step, double total_weight,
                   const std::vector<Neighbor> &nbr, CholeskyFactor &factor) {
   const double sqrt_total = std::sqrt(total_weight);
 
-  factor.columns[step].entries.push_back({v, sqrt_total});
+  auto &col_entries = factor.columns[step].entries;
+  col_entries.reserve(nbr.size() + 1);
+  col_entries.push_back({v, sqrt_total});
   for (const auto &n_info : nbr) {
-    factor.columns[step].entries.push_back(
-        {n_info.to, -n_info.weight / sqrt_total});
+    col_entries.push_back({n_info.to, -n_info.weight / sqrt_total});
   }
 }
 
@@ -58,7 +59,10 @@ CholeskyFactor factorize(const Graph &input_G, idx samples,
   factor.order.reserve(n);
 
   std::vector<Edge> star_buf;
+  star_buf.reserve(128);
+
   std::vector<Neighbor> nbr_buf;
+  nbr_buf.reserve(128);
 
   std::mt19937_64 local_rng(42);
   std::mt19937_64 &active_rng = rng ? *rng : local_rng;
