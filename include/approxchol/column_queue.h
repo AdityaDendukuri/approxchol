@@ -1,25 +1,25 @@
 #pragma once
 
-#include "approxchol/multigraph.h"
+#include "approxchol/matrix.h"
 
 #include <vector>
 
 namespace approxchol {
 
-struct DegreeQueue {
+struct ColumnQueue {
   static constexpr idx none = static_cast<idx>(-1);
 
   std::vector<idx> head;
   std::vector<idx> next;
   std::vector<idx> prev;
-  std::vector<idx> degree;
+  std::vector<idx> nnz;
   idx low = 0;
 
-  explicit DegreeQueue(const MultiGraph &G);
+  explicit ColumnQueue(const SparseMatrix &A);
 
-  void insert(idx v, idx d);
-  void erase(idx v);
-  void rekey(idx v, idx d);
+  void insert(idx col, idx count);
+  void erase(idx col);
+  void rekey(idx col, idx count);
   idx pop_min();
 };
 

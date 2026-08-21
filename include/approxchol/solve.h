@@ -1,6 +1,6 @@
 #pragma once
 
-#include "approxchol/multigraph.h"
+#include "approxchol/matrix.h"
 
 #include <cstdint>
 #include <random>
@@ -22,17 +22,17 @@ struct CholeskyFactor {
   std::vector<idx> order;
 };
 
-CholeskyFactor factorize(const MultiGraph &G, idx samples = 2,
+CholeskyFactor factorize(const SparseMatrix &A, idx samples = 2,
                          bool exact_mode = false,
                          std::mt19937_64 *rng = nullptr);
 
-CholeskyFactor ac1(const MultiGraph &G, std::uint64_t seed = 42);
-CholeskyFactor ac1(const MultiGraph &G, std::mt19937_64 &rng);
+CholeskyFactor ac1(const SparseMatrix &A, std::uint64_t seed = 42);
+CholeskyFactor ac1(const SparseMatrix &A, std::mt19937_64 &rng);
 
-CholeskyFactor ac2(const MultiGraph &G, std::uint64_t seed = 42);
-CholeskyFactor ac2(const MultiGraph &G, std::mt19937_64 &rng);
+CholeskyFactor ac2(const SparseMatrix &A, std::uint64_t seed = 42);
+CholeskyFactor ac2(const SparseMatrix &A, std::mt19937_64 &rng);
 
-CholeskyFactor exact(const MultiGraph &G);
+CholeskyFactor exact(const SparseMatrix &A);
 
 double get_entry(const CholeskyFactor &F, idx row, idx col);
 
