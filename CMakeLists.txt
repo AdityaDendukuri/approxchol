@@ -9,14 +9,10 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_library(approxchol
-  src/degree_queue.cpp
-  src/graph.cpp
-  src/solve.cpp
-)
+add_library(approxchol INTERFACE)
 
 target_include_directories(approxchol
-  PUBLIC
+  INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )

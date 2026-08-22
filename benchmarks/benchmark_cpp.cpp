@@ -1,4 +1,4 @@
-#include "approxchol/solve.h"
+#include "approxchol/approxchol.hpp"
 #include "random_graph.h"
 
 #include <chrono>
@@ -14,10 +14,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  approxchol::idx n = std::stoull(argv[1]);
+  std::size_t n = std::stoull(argv[1]);
   int repeats = (argc >= 3) ? std::atoi(argv[2]) : 5;
 
-  approxchol::Graph G = approxchol::make_random_laplacian(n, 6, 42);
+  auto G = approxchol::make_random_laplacian<double, std::size_t>(n, 6, 42);
 
   // Warmup
   auto f1_w = approxchol::ac1(G, 42);

@@ -1,6 +1,4 @@
-#include "approxchol/degree_queue.h"
-#include "approxchol/graph.h"
-#include "approxchol/solve.h"
+#include "approxchol/approxchol.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -18,20 +16,21 @@ void check(bool condition, const char *msg) {
   }
 }
 
-approxchol::Graph make_grid_laplacian(idx rows, idx cols) {
-  const idx n = rows * cols;
-  approxchol::Graph G(n);
+template <typename Float = double, typename Index = std::size_t>
+approxchol::Graph<Float, Index> make_grid_laplacian(Index rows, Index cols) {
+  const Index n = rows * cols;
+  approxchol::Graph<Float, Index> G(n);
 
-  auto index = [cols](idx r, idx c) { return r * cols + c; };
+  auto index = [cols](Index r, Index c) { return r * cols + c; };
 
-  for (idx r = 0; r < rows; ++r) {
-    for (idx c = 0; c < cols; ++c) {
-      idx u = index(r, c);
+  for (Index r = 0; r < rows; ++r) {
+    for (Index c = 0; c < cols; ++c) {
+      Index u = index(r, c);
       if (c + 1 < cols) {
-        approxchol::add_edge(G, u, index(r, c + 1), 1.0);
+        approxchol::add_edge(G, u, index(r, c + 1), static_cast<Float>(1.0));
       }
       if (r + 1 < rows) {
-        approxchol::add_edge(G, u, index(r + 1, c), 1.0);
+        approxchol::add_edge(G, u, index(r + 1, c), static_cast<Float>(1.0));
       }
     }
   }
@@ -39,13 +38,14 @@ approxchol::Graph make_grid_laplacian(idx rows, idx cols) {
   return G;
 }
 
-std::vector<std::vector<double>>
-dense_from_graph(const approxchol::Graph &G) {
-  const idx n = G.size();
-  std::vector<std::vector<double>> A(n, std::vector<double>(n, 0.0));
+template <typename Float = double, typename Index = std::size_t>
+std::vector<std::vector<Float>>
+dense_from_graph(const approxchol::Graph<Float, Index> &G) {
+  const Index n = static_cast<Index>(G.size());
+  std::vector<std::vector<Float>> A(n, std::vector<Float>(n, static_cast<Float>(0)));
 
-  for (idx u = 0; u < n; ++u) {
-    double diag = 0.0;
+  for (Index u = 0; u < n; ++u) {
+    Float diag = static_cast<Float>(0);
     for (const auto &e : G[u]) {
       A[u][e.to] -= e.weight;
       diag += e.weight;
@@ -57,25 +57,25 @@ dense_from_graph(const approxchol::Graph &G) {
 }
 
 void test_exact_factorization() {
-  const idx rows = 4;
-  const idx cols = 4;
-  const idx n = rows * cols;
+  const std::size_t rows = 4;
+  const std::size_t cols = 4;
+  const std::size_t n = rows * cols;
 
-  approxchol::Graph G = make_grid_laplacian(rows, cols);
+  auto G = make_grid_laplacian<double, std::size_t>(rows, cols);
   auto A_dense = dense_from_graph(G);
 
-  approxchol::CholeskyFactor F = approxchol::exact(G);
+  auto F = approxchol::exact(G);
 
-  std::vector<idx> pos(n);
-  for (idx step = 0; step < n; ++step) {
+  std::vector<std::size_t> pos(n);
+  for (std::size_t step = 0; step < n; ++step) {
     pos[F.order[step]] = step;
   }
 
   double max_err = 0.0;
-  for (idx u = 0; u < n; ++u) {
-    for (idx v = 0; v < n; ++v) {
+  for (std::size_t u = 0; u < n; ++u) {
+    for (std::size_t v = 0; v < n; ++v) {
       double l_lt = 0.0;
-      for (idx k = 0; k < n; ++k) {
+      for (std::size_t k = 0; k < n; ++k) {
         double l_uk = approxchol::get_entry(F, pos[u], k);
         double l_vk = approxchol::get_entry(F, pos[v], k);
         if (l_uk != 0.0 && l_vk != 0.0) {
@@ -92,14 +92,14 @@ void test_exact_factorization() {
 }
 
 void test_ac1_and_ac2_factorization() {
-  const idx rows = 4;
-  const idx cols = 4;
-  const idx n = rows * cols;
+  const std::size_t rows = 4;
+  const std::size_t cols = 4;
+  const std::size_t n = rows * cols;
 
-  approxchol::Graph G = make_grid_laplacian(rows, cols);
+  auto G = make_grid_laplacian<double, std::size_t>(rows, cols);
 
-  approxchol::CholeskyFactor F1 = approxchol::ac1(G, /*seed=*/42);
-  approxchol::CholeskyFactor F2 = approxchol::ac2(G, /*seed=*/42);
+  auto F1 = approxchol::ac1(G, /*seed=*/42);
+  auto F2 = approxchol::ac2(G, /*seed=*/42);
 
   check(F1.columns.size() == n, "AC1 factor column count mismatch");
   check(F2.columns.size() == n, "AC2 factor column count mismatch");
@@ -107,32 +107,46 @@ void test_ac1_and_ac2_factorization() {
   std::cout << "test_ac1_and_ac2_factorization passed\n";
 }
 
-void test_full_factor_expectation() {
-  const idx rows = 3;
-  const idx cols = 3;
-  const idx n = rows * cols;
-  const idx trials = 3000;
+void test_templated_types_float_and_uint32() {
+  const std::uint32_t rows = 4;
+  const std::uint32_t cols = 4;
+  const std::uint32_t n = rows * cols;
 
-  approxchol::Graph G = make_grid_laplacian(rows, cols);
+  auto G = make_grid_laplacian<float, std::uint32_t>(rows, cols);
+
+  std::mt19937 custom_rng(777);
+  auto F = approxchol::ac2(G, custom_rng);
+
+  check(F.columns.size() == n, "Templated factor column count mismatch");
+  std::cout << "test_templated_types_float_and_uint32 passed\n";
+}
+
+void test_full_factor_expectation() {
+  const std::size_t rows = 3;
+  const std::size_t cols = 3;
+  const std::size_t n = rows * cols;
+  const std::size_t trials = 3000;
+
+  auto G = make_grid_laplacian<double, std::size_t>(rows, cols);
   auto A_dense = dense_from_graph(G);
 
   std::vector<std::vector<double>> E_LLt(n, std::vector<double>(n, 0.0));
   std::mt19937_64 rng(123);
 
-  for (idx t = 0; t < trials; ++t) {
-    approxchol::CholeskyFactor F = approxchol::ac2(G, rng);
+  for (std::size_t t = 0; t < trials; ++t) {
+    auto F = approxchol::ac2(G, rng);
 
-    std::vector<idx> pos(n);
-    for (idx step = 0; step < n; ++step) {
+    std::vector<std::size_t> pos(n);
+    for (std::size_t step = 0; step < n; ++step) {
       pos[F.order[step]] = step;
     }
 
-    for (idx u = 0; u < n; ++u) {
-      idx row_u = pos[u];
-      for (idx v = 0; v < n; ++v) {
-        idx row_v = pos[v];
+    for (std::size_t u = 0; u < n; ++u) {
+      std::size_t row_u = pos[u];
+      for (std::size_t v = 0; v < n; ++v) {
+        std::size_t row_v = pos[v];
         double val = 0.0;
-        for (idx k = 0; k < n; ++k) {
+        for (std::size_t k = 0; k < n; ++k) {
           double l_uk = approxchol::get_entry(F, row_u, k);
           double l_vk = approxchol::get_entry(F, row_v, k);
           if (l_uk != 0.0 && l_vk != 0.0) {
@@ -145,8 +159,8 @@ void test_full_factor_expectation() {
   }
 
   double max_mc_err = 0.0;
-  for (idx u = 0; u < n; ++u) {
-    for (idx v = 0; v < n; ++v) {
+  for (std::size_t u = 0; u < n; ++u) {
+    for (std::size_t v = 0; v < n; ++v) {
       double mean_val = E_LLt[u][v] / static_cast<double>(trials);
       max_mc_err = std::max(max_mc_err, std::abs(mean_val - A_dense[u][v]));
     }
@@ -163,6 +177,7 @@ int main() {
   try {
     test_exact_factorization();
     test_ac1_and_ac2_factorization();
+    test_templated_types_float_and_uint32();
     test_full_factor_expectation();
     std::cout << "All tests passed.\n";
   } catch (const std::exception &e) {
