@@ -8,8 +8,7 @@
 #include <numeric>
 #include <vector>
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <N> [repeats=5]\n";
         return 1;

@@ -4,7 +4,8 @@ Language: Cpp
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-BreakBeforeBraces: Linux
+BreakBeforeBraces: Attach
+BreakTemplateDeclarations: Yes
 ColumnLimit: 100
 PointerAlignment: Right
 SpacesBeforeTrailingComments: 1

@@ -6,21 +6,18 @@
 #include <stdexcept>
 #include <vector>
 
-namespace
-{
+namespace {
 
 using approxchol::idx;
 
-void check(bool condition, const char *msg)
-{
+void check(bool condition, const char *msg) {
     if (!condition) {
         throw std::runtime_error(std::string("Test assertion failed: ") + msg);
     }
 }
 
 template <typename Float = double, typename Index = std::size_t>
-approxchol::Graph<Float, Index> make_grid_laplacian(Index rows, Index cols)
-{
+approxchol::Graph<Float, Index> make_grid_laplacian(Index rows, Index cols) {
     const Index n = rows * cols;
     approxchol::Graph<Float, Index> G(n);
 
@@ -42,8 +39,7 @@ approxchol::Graph<Float, Index> make_grid_laplacian(Index rows, Index cols)
 }
 
 template <typename Float = double, typename Index = std::size_t>
-std::vector<std::vector<Float>> dense_from_graph(const approxchol::Graph<Float, Index> &G)
-{
+std::vector<std::vector<Float>> dense_from_graph(const approxchol::Graph<Float, Index> &G) {
     const Index n = static_cast<Index>(G.size());
     std::vector<std::vector<Float>> A(n, std::vector<Float>(n, static_cast<Float>(0)));
 
@@ -59,8 +55,7 @@ std::vector<std::vector<Float>> dense_from_graph(const approxchol::Graph<Float, 
     return A;
 }
 
-void test_exact_factorization()
-{
+void test_exact_factorization() {
     const std::size_t rows = 4;
     const std::size_t cols = 4;
     const std::size_t n = rows * cols;
@@ -94,8 +89,7 @@ void test_exact_factorization()
     std::cout << "test_exact_factorization passed (max error = " << max_err << ")\n";
 }
 
-void test_ac1_and_ac2_factorization()
-{
+void test_ac1_and_ac2_factorization() {
     const std::size_t rows = 4;
     const std::size_t cols = 4;
     const std::size_t n = rows * cols;
@@ -111,8 +105,7 @@ void test_ac1_and_ac2_factorization()
     std::cout << "test_ac1_and_ac2_factorization passed\n";
 }
 
-void test_templated_types_float_and_uint32()
-{
+void test_templated_types_float_and_uint32() {
     const std::uint32_t rows = 4;
     const std::uint32_t cols = 4;
     const std::uint32_t n = rows * cols;
@@ -126,8 +119,7 @@ void test_templated_types_float_and_uint32()
     std::cout << "test_templated_types_float_and_uint32 passed\n";
 }
 
-void test_full_factor_expectation()
-{
+void test_full_factor_expectation() {
     const std::size_t rows = 3;
     const std::size_t cols = 3;
     const std::size_t n = rows * cols;
@@ -178,8 +170,7 @@ void test_full_factor_expectation()
 
 } // namespace
 
-int main()
-{
+int main() {
     try {
         test_exact_factorization();
         test_ac1_and_ac2_factorization();

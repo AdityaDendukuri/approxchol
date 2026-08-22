@@ -6,10 +6,10 @@
 #include <stdexcept>
 #include <vector>
 
-namespace approxchol
-{
+namespace approxchol {
 
-template <typename Index = std::size_t, typename Float = double> struct DegreeQueue {
+template <typename Index = std::size_t, typename Float = double>
+struct DegreeQueue {
     static constexpr Index none = static_cast<Index>(-1);
 
     std::vector<Index> head;
@@ -18,8 +18,7 @@ template <typename Index = std::size_t, typename Float = double> struct DegreeQu
     std::vector<Index> degree;
     Index low = 0;
 
-    explicit DegreeQueue(const Graph<Float, Index> &G)
-    {
+    explicit DegreeQueue(const Graph<Float, Index> &G) {
         const Index n = static_cast<Index>(G.size());
         head.assign(n + 1, none);
         next.assign(n, none);
@@ -35,8 +34,7 @@ template <typename Index = std::size_t, typename Float = double> struct DegreeQu
         }
     }
 
-    void insert(Index v, Index d)
-    {
+    void insert(Index v, Index d) {
         if (d >= head.size()) {
             head.resize(std::max(d + 1, static_cast<Index>(2 * head.size())), none);
         }
@@ -52,8 +50,7 @@ template <typename Index = std::size_t, typename Float = double> struct DegreeQu
         }
     }
 
-    void erase(Index v)
-    {
+    void erase(Index v) {
         const Index d = degree[v];
         if (prev[v] == none) {
             head[d] = next[v];
@@ -67,14 +64,12 @@ template <typename Index = std::size_t, typename Float = double> struct DegreeQu
         prev[v] = none;
     }
 
-    void rekey(Index v, Index d)
-    {
+    void rekey(Index v, Index d) {
         erase(v);
         insert(v, d);
     }
 
-    Index pop_min()
-    {
+    Index pop_min() {
         while (low < head.size() && head[low] == none) {
             ++low;
         }

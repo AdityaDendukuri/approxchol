@@ -6,13 +6,11 @@
 #include <random>
 #include <stdexcept>
 
-namespace approxchol
-{
+namespace approxchol {
 
 template <typename Float = double, typename Index = std::size_t>
 inline Graph<Float, Index> make_random_laplacian(Index n, Index avg_degree = 6,
-                                                 std::uint64_t seed = 42)
-{
+                                                 std::uint64_t seed = 42) {
     if (n < 2) {
         throw std::invalid_argument("n must be at least 2");
     }

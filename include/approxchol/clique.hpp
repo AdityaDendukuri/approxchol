@@ -8,16 +8,14 @@
 #include <random>
 #include <vector>
 
-namespace approxchol
-{
+namespace approxchol {
 
 template <typename Float = double, typename Index = std::size_t,
           typename Queue = DegreeQueue<Index, Float>>
 inline Float collect_neighbors(Index v, Graph<Float, Index> &G,
                                const std::vector<std::uint8_t> &done, Queue &q,
                                std::vector<Edge<Float, Index>> &star_buf,
-                               std::vector<Neighbor<Float, Index>> &nbr_out)
-{
+                               std::vector<Neighbor<Float, Index>> &nbr_out) {
     star_buf.clear();
     for (const auto &e : G[v]) {
         if (done[e.to]) {
@@ -57,8 +55,7 @@ inline Float collect_neighbors(Index v, Graph<Float, Index> &G,
 template <typename Float = double, typename Index = std::size_t,
           typename Queue = DegreeQueue<Index, Float>>
 inline void add_exact_clique(Graph<Float, Index> &G, Queue &q,
-                             const std::vector<Neighbor<Float, Index>> &nbr, Float total_weight)
-{
+                             const std::vector<Neighbor<Float, Index>> &nbr, Float total_weight) {
     for (Index a = 0; a < nbr.size(); ++a) {
         for (Index b = a + 1; b < nbr.size(); ++b) {
             Float w_exact = (nbr[a].weight * nbr[b].weight) / total_weight;
@@ -77,8 +74,7 @@ template <typename Float = double, typename Index = std::size_t,
           typename Queue = DegreeQueue<Index, Float>, typename Rng = std::mt19937_64>
 inline void sample_clique(Graph<Float, Index> &G, Queue &q,
                           std::vector<Neighbor<Float, Index>> &nbr, Float total_weight,
-                          Index sample_limit, Rng &rng)
-{
+                          Index sample_limit, Rng &rng) {
     std::sort(nbr.begin(), nbr.end(),
               [](const Neighbor<Float, Index> &a, const Neighbor<Float, Index> &b) {
                   return a.weight < b.weight;

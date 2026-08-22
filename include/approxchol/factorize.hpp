@@ -9,17 +9,14 @@
 #include <random>
 #include <vector>
 
-namespace approxchol
-{
+namespace approxchol {
 
-namespace detail
-{
+namespace detail {
 
 template <typename Float, typename Index>
 inline void write_column(Index v, Index step, Float total_weight,
                          const std::vector<Neighbor<Float, Index>> &nbr,
-                         CholeskyFactor<Float, Index> &factor)
-{
+                         CholeskyFactor<Float, Index> &factor) {
     const Float sqrt_total = std::sqrt(total_weight);
 
     auto &col_entries = factor.columns[step].entries;
@@ -31,8 +28,7 @@ inline void write_column(Index v, Index step, Float total_weight,
 }
 
 template <typename Float, typename Index>
-inline void permute_rows(CholeskyFactor<Float, Index> &factor)
-{
+inline void permute_rows(CholeskyFactor<Float, Index> &factor) {
     const Index n = static_cast<Index>(factor.order.size());
     std::vector<Index> position(n);
 
@@ -52,8 +48,7 @@ inline void permute_rows(CholeskyFactor<Float, Index> &factor)
 template <typename Float = double, typename Index = std::size_t, typename Rng = std::mt19937_64,
           typename Queue = DegreeQueue<Index, Float>>
 inline CholeskyFactor<Float, Index> factorize(const Graph<Float, Index> &input_G, Index samples = 1,
-                                              bool exact_mode = false, Rng *rng = nullptr)
-{
+                                              bool exact_mode = false, Rng *rng = nullptr) {
     const Index n = static_cast<Index>(input_G.size());
     Graph<Float, Index> G = input_G;
 
@@ -111,34 +106,29 @@ inline CholeskyFactor<Float, Index> factorize(const Graph<Float, Index> &input_G
 }
 
 template <typename Float = double, typename Index = std::size_t>
-inline CholeskyFactor<Float, Index> ac1(const Graph<Float, Index> &G, std::uint64_t seed = 42)
-{
+inline CholeskyFactor<Float, Index> ac1(const Graph<Float, Index> &G, std::uint64_t seed = 42) {
     std::mt19937_64 rng(seed);
     return factorize<Float, Index, std::mt19937_64>(G, 1, false, &rng);
 }
 
 template <typename Float = double, typename Index = std::size_t, typename Rng = std::mt19937_64>
-inline CholeskyFactor<Float, Index> ac1(const Graph<Float, Index> &G, Rng &rng)
-{
+inline CholeskyFactor<Float, Index> ac1(const Graph<Float, Index> &G, Rng &rng) {
     return factorize<Float, Index, Rng>(G, 1, false, &rng);
 }
 
 template <typename Float = double, typename Index = std::size_t>
-inline CholeskyFactor<Float, Index> ac2(const Graph<Float, Index> &G, std::uint64_t seed = 42)
-{
+inline CholeskyFactor<Float, Index> ac2(const Graph<Float, Index> &G, std::uint64_t seed = 42) {
     std::mt19937_64 rng(seed);
     return factorize<Float, Index, std::mt19937_64>(G, 2, false, &rng);
 }
 
 template <typename Float = double, typename Index = std::size_t, typename Rng = std::mt19937_64>
-inline CholeskyFactor<Float, Index> ac2(const Graph<Float, Index> &G, Rng &rng)
-{
+inline CholeskyFactor<Float, Index> ac2(const Graph<Float, Index> &G, Rng &rng) {
     return factorize<Float, Index, Rng>(G, 2, false, &rng);
 }
 
 template <typename Float = double, typename Index = std::size_t>
-inline CholeskyFactor<Float, Index> exact(const Graph<Float, Index> &G)
-{
+inline CholeskyFactor<Float, Index> exact(const Graph<Float, Index> &G) {
     return factorize<Float, Index, std::mt19937_64>(G, 1, true, nullptr);
 }
 
