@@ -168,11 +168,47 @@ void test_full_factor_expectation() {
     std::cout << "test_full_factor_expectation passed (max error = " << max_mc_err << ")\n";
 }
 
+void test_triangular_solve() {
+    const std::size_t rows = 4;
+    const std::size_t cols = 4;
+    const std::size_t n = rows * cols;
+
+    auto G = make_grid_laplacian<double, std::size_t>(rows, cols);
+    // Add ground/leak to node 0 so A is strictly positive definite
+    G[0].push_back({0, 1.0, 1}); // Self-loop to make SDDM strictly SPD
+    auto A_dense = dense_from_graph(G);
+
+    auto F = approxchol::exact(G);
+
+    std::vector<double> x_true(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        x_true[i] = static_cast<double>(i + 1);
+    }
+
+    std::vector<double> b(n, 0.0);
+    for (std::size_t i = 0; i < n; ++i) {
+        for (std::size_t j = 0; j < n; ++j) {
+            b[i] += A_dense[i][j] * x_true[j];
+        }
+    }
+
+    auto x_computed = approxchol::solve(F, b);
+
+    double max_err = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        max_err = std::max(max_err, std::abs(x_computed[i] - x_true[i]));
+    }
+
+    check(max_err < 1e-11, "Triangular solve error exceeds tolerance");
+    std::cout << "test_triangular_solve passed (max error = " << max_err << ")\n";
+}
+
 } // namespace
 
 int main() {
     try {
         test_exact_factorization();
+        test_triangular_solve();
         test_ac1_and_ac2_factorization();
         test_templated_types_float_and_uint32();
         test_full_factor_expectation();
