@@ -1,14 +1,18 @@
+/// @file approxchol/solve.hpp
+/// @brief Substitution and solve routines for Approximate Cholesky factors.
 #pragma once
 
 #include "approxchol/types.hpp"
+
+#include <concepts>
 #include <cstddef>
 #include <vector>
 
 namespace approxchol {
 
 /// Solve (P A P^T) (P x) = P b using forward and backward substitution with L L^T.
-template <typename Float = double, typename Index = std::size_t>
-inline void solve(const CholeskyFactor<Float, Index> &factor, const Float *b, Float *x,
+template <typename Float = double, std::integral Index = std::size_t>
+inline void solve(const cholesky_factor<Float, Index> &factor, const Float *b, Float *x,
                   std::vector<Float> &scratch) {
     const Index n = static_cast<Index>(factor.order.size());
     if (scratch.size() < n) {
@@ -55,8 +59,8 @@ inline void solve(const CholeskyFactor<Float, Index> &factor, const Float *b, Fl
 }
 
 /// Convenience vector solve overload.
-template <typename Float = double, typename Index = std::size_t>
-inline std::vector<Float> solve(const CholeskyFactor<Float, Index> &factor,
+template <typename Float = double, std::integral Index = std::size_t>
+inline std::vector<Float> solve(const cholesky_factor<Float, Index> &factor,
                                 const std::vector<Float> &b) {
     const Index n = static_cast<Index>(factor.order.size());
     std::vector<Float> x(n, 0.0);

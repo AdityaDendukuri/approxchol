@@ -2,13 +2,12 @@
 
 #include <cmath>
 #include <iostream>
+#include <optional>
 #include <random>
 #include <stdexcept>
 #include <vector>
 
 namespace {
-
-using approxchol::idx;
 
 void check(bool condition, const char *msg) {
     if (!condition) {
@@ -17,9 +16,9 @@ void check(bool condition, const char *msg) {
 }
 
 template <typename Float = double, typename Index = std::size_t>
-approxchol::Graph<Float, Index> make_grid_laplacian(Index rows, Index cols) {
+approxchol::adjacency_list<Float, Index> make_grid_laplacian(Index rows, Index cols) {
     const Index n = rows * cols;
-    approxchol::Graph<Float, Index> G(n);
+    approxchol::adjacency_list<Float, Index> G(n);
 
     auto index = [cols](Index r, Index c) { return r * cols + c; };
 
@@ -39,7 +38,8 @@ approxchol::Graph<Float, Index> make_grid_laplacian(Index rows, Index cols) {
 }
 
 template <typename Float = double, typename Index = std::size_t>
-std::vector<std::vector<Float>> dense_from_graph(const approxchol::Graph<Float, Index> &G) {
+std::vector<std::vector<Float>>
+dense_from_graph(const approxchol::adjacency_list<Float, Index> &G) {
     const Index n = static_cast<Index>(G.size());
     std::vector<std::vector<Float>> A(n, std::vector<Float>(n, static_cast<Float>(0)));
 
@@ -203,6 +203,62 @@ void test_triangular_solve() {
     std::cout << "test_triangular_solve passed (max error = " << max_err << ")\n";
 }
 
+void test_tree_sampler_expectation() {
+    const std::size_t rows = 3;
+    const std::size_t cols = 3;
+    const std::size_t n = rows * cols;
+    const std::size_t trials = 3000;
+
+    auto G = make_grid_laplacian<double, std::size_t>(rows, cols);
+    auto A_dense = dense_from_graph(G);
+
+    std::vector<std::vector<double>> E_LLt(n, std::vector<double>(n, 0.0));
+    approxchol::rng64 rng(321);
+
+    for (std::size_t t = 0; t < trials; ++t) {
+        auto F = approxchol::act(G, rng);
+
+        std::vector<std::size_t> pos(n);
+        for (std::size_t step = 0; step < n; ++step) {
+            pos[F.order[step]] = step;
+        }
+
+        for (std::size_t u = 0; u < n; ++u) {
+            for (std::size_t v = 0; v < n; ++v) {
+                double val = 0.0;
+                for (std::size_t k = 0; k < n; ++k) {
+                    val +=
+                        approxchol::get_entry(F, pos[u], k) * approxchol::get_entry(F, pos[v], k);
+                }
+                E_LLt[u][v] += val;
+            }
+        }
+    }
+
+    double max_mc_err = 0.0;
+    for (std::size_t u = 0; u < n; ++u) {
+        for (std::size_t v = 0; v < n; ++v) {
+            double mean_val = E_LLt[u][v] / static_cast<double>(trials);
+            max_mc_err = std::max(max_mc_err, std::abs(mean_val - A_dense[u][v]));
+        }
+    }
+
+    check(max_mc_err < 0.1, "Tree sampler expectation error too large");
+    std::cout << "test_tree_sampler_expectation passed (max error = " << max_mc_err << ")\n";
+}
+
+void test_pinned_vertex_is_last() {
+    auto G = make_grid_laplacian<double, std::size_t>(4, 4);
+    const std::size_t pinned = 5;
+
+    approxchol::rng64 rng(7);
+    auto F = approxchol::factorize<double, std::size_t>(G, approxchol::gao_kyng_spielman_2023::ac2,
+                                                        &rng, std::optional<std::size_t>(pinned));
+
+    check(F.order.back() == pinned, "Pinned vertex was not eliminated last");
+    std::cout << "test_pinned_vertex_is_last passed\n";
+}
+
 } // namespace
 
 int main() {
@@ -212,6 +268,8 @@ int main() {
         test_ac1_and_ac2_factorization();
         test_templated_types_float_and_uint32();
         test_full_factor_expectation();
+        test_tree_sampler_expectation();
+        test_pinned_vertex_is_last();
         std::cout << "All tests passed.\n";
     } catch (const std::exception &e) {
         std::cerr << "Test failed: " << e.what() << '\n';

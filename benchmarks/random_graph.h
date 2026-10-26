@@ -9,13 +9,13 @@
 namespace approxchol {
 
 template <typename Float = double, typename Index = std::size_t>
-inline Graph<Float, Index> make_random_laplacian(Index n, Index avg_degree = 6,
-                                                 std::uint64_t seed = 42) {
+inline adjacency_list<Float, Index> make_random_laplacian(Index n, Index avg_degree = 6,
+                                                          std::uint64_t seed = 42) {
     if (n < 2) {
         throw std::invalid_argument("n must be at least 2");
     }
 
-    Graph<Float, Index> G(n);
+    adjacency_list<Float, Index> G(n);
     std::mt19937_64 rng(seed);
     std::uniform_real_distribution<Float> w_dist(static_cast<Float>(0.5), static_cast<Float>(2.0));
 
