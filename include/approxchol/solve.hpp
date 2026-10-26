@@ -1,72 +1,25 @@
-/// @file approxchol/solve.hpp
-/// @brief Substitution and solve routines for Approximate Cholesky factors.
+/// @file approxchol/solve.hpp  x = P^T (L L^T)^{-1} P b by forward and back substitution.
 #pragma once
-
 #include "approxchol/types.hpp"
-
-#include <concepts>
-#include <cstddef>
-#include <vector>
-
 namespace approxchol {
-
-/// Solve (P A P^T) (P x) = P b using forward and backward substitution with L L^T.
-template <typename Float = double, std::integral Index = std::size_t>
-inline void solve(const cholesky_factor<Float, Index> &factor, const Float *b, Float *x,
-                  std::vector<Float> &scratch) {
-    const Index n = static_cast<Index>(factor.order.size());
-    if (scratch.size() < n) {
-        scratch.resize(n);
+template <typename Float, std::integral Index>
+std::vector<Float> solve(const cholesky_factor<Float, Index> &F, const std::vector<Float> &b) {
+    const std::size_t n = F.order.size();
+    std::vector<Float> y(n), x(n);
+    for (std::size_t k = 0; k < n; ++k) y[k] = b[F.order[k]];
+    for (std::size_t j = 0; j < n; ++j) {
+        const auto &c = F.columns[j];
+        if (c.empty()) continue;
+        y[j] /= c[0].value;
+        for (std::size_t e = 1; e < c.size(); ++e) y[c[e].row] -= c[e].value * y[j];
     }
-
-    // 1. Permute RHS: w = P b
-    for (Index k = 0; k < n; ++k) {
-        scratch[k] = b[factor.order[k]];
+    for (std::size_t j = n; j-- > 0;) {
+        const auto &c = F.columns[j];
+        if (c.empty()) continue;
+        for (std::size_t e = 1; e < c.size(); ++e) y[j] -= c[e].value * y[c[e].row];
+        y[j] /= c[0].value;
     }
-
-    // 2. Forward solve: L y = w (column-oriented)
-    for (Index j = 0; j < n; ++j) {
-        const auto &entries = factor.columns[j].entries;
-        if (entries.empty()) {
-            continue;
-        }
-        const Float diag = entries[0].value;
-        scratch[j] /= diag;
-        const Float wj = scratch[j];
-        for (std::size_t e = 1; e < entries.size(); ++e) {
-            scratch[entries[e].row] -= entries[e].value * wj;
-        }
-    }
-
-    // 3. Backward solve: L^T v = y (column-oriented)
-    for (Index step = 0; step < n; ++step) {
-        const Index j = n - 1 - step;
-        const auto &entries = factor.columns[j].entries;
-        if (entries.empty()) {
-            continue;
-        }
-        Float sum = scratch[j];
-        for (std::size_t e = 1; e < entries.size(); ++e) {
-            sum -= entries[e].value * scratch[entries[e].row];
-        }
-        scratch[j] = sum / entries[0].value;
-    }
-
-    // 4. Inverse permute: x = P^T v
-    for (Index k = 0; k < n; ++k) {
-        x[factor.order[k]] = scratch[k];
-    }
-}
-
-/// Convenience vector solve overload.
-template <typename Float = double, std::integral Index = std::size_t>
-inline std::vector<Float> solve(const cholesky_factor<Float, Index> &factor,
-                                const std::vector<Float> &b) {
-    const Index n = static_cast<Index>(factor.order.size());
-    std::vector<Float> x(n, 0.0);
-    std::vector<Float> scratch(n, 0.0);
-    solve(factor, b.data(), x.data(), scratch);
+    for (std::size_t k = 0; k < n; ++k) x[F.order[k]] = y[k];
     return x;
 }
-
 } // namespace approxchol

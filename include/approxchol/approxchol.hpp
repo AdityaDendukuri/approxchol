@@ -1,11 +1,5 @@
-/// @file approxchol/approxchol.hpp
-/// @brief Approximate Cholesky for graph Laplacians, in one include.
+/// @file approxchol/approxchol.hpp  Randomized approximate Cholesky, in one include.
 #pragma once
-
-#include "approxchol/clique.hpp"
 #include "approxchol/concepts.hpp"
-#include "approxchol/degree_queue.hpp"
 #include "approxchol/factorize.hpp"
-#include "approxchol/multigraph.hpp"
 #include "approxchol/solve.hpp"
-#include "approxchol/types.hpp"

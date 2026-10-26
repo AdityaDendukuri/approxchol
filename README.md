@@ -1,7 +1,8 @@
 # approxchol
 
-Header-only C++20 randomized approximate Cholesky for graph Laplacians and SDD
-M-matrices. Use the factor as a preconditioner (e.g. for CG). No dependencies.
+Header-only C++20 randomized approximate Cholesky for graph Laplacians, in under
+200 lines. Use the factor as a preconditioner (e.g. for CG). No dependencies.
+For an SDD M-matrix, add one ground vertex joined to each row by its diagonal excess.
 
 Implements Gao, Kyng & Spielman, *Robust and Practical Solution of Laplacian
 Equations by Approximate Elimination* (2023), [arXiv:2303.00709](https://arxiv.org/abs/2303.00709).
@@ -62,9 +63,7 @@ auto F = approxchol::ac2(g, rng);   // converted once, then factorized
 | --- | --- |
 | `ac1(G, rng)` | GKS AC: one clique sample per edge |
 | `ac2(G, rng)` | GKS AC2: two samples per edge, better quality |
-| `act(G, rng, trees)` | each eliminated clique replaced by a random spanning tree |
 | `exact(G)` | exact Cholesky by full clique elimination (fills in) |
-| `factorize(G, ..., pinned_vertex)` | keep one vertex for last (grounding SDDM matrices) |
 
 `Float` and `Index` are template parameters (e.g. `float`, `std::uint32_t`).
 The approximate factors are unbiased: `E[L L^T] = L_G`.

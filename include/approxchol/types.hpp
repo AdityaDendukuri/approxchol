@@ -1,69 +1,31 @@
-/// @file approxchol/types.hpp
-/// @brief The graphs and factors that approximate Cholesky works with.
+/// @file approxchol/types.hpp  The graph being eliminated and the factor it produces.
 #pragma once
-
-#include "approxchol/multigraph.hpp"
-
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <random>
 #include <vector>
-
 namespace approxchol {
-
-/// @brief Default random source.
 using rng64 = std::mt19937_64;
-
+/// An edge to `to` of weight `weight`, standing for `count` parallel copies.
 template <typename Float = double, std::integral Index = std::size_t>
-using graph_edge = multi_edge<Float, Index>;
+struct edge { Index to{}; Float weight{1}; std::uint8_t count = 1; };
 
-/// @brief A weighted multigraph as adjacency lists.
+/// One neighbor list per vertex; each undirected edge is stored in both lists.
 template <typename Float = double, std::integral Index = std::size_t>
-using adjacency_list = std::vector<std::vector<graph_edge<Float, Index>>>;
+using adjacency_list = std::vector<std::vector<edge<Float, Index>>>;
 
-template <typename Float = double, std::integral Index = std::size_t>
-using neighbor = multi_edge<Float, Index>;
+template <typename Float, std::integral Index>
+void add_edge(adjacency_list<Float, Index> &G, Index u, Index v, Float w) {
+    G[u].push_back({v, w, 1}), G[v].push_back({u, w, 1});
+}
 
-/// @brief One entry of a factor column.
-template <typename Float = double, std::integral Index = std::size_t>
-struct factor_entry {
-    Index row{};
-    Float value{};
-};
-
-/// @brief One column of a sparse Cholesky factor.
-template <typename Float = double, std::integral Index = std::size_t>
-struct factor_column {
-    std::vector<factor_entry<Float, Index>> entries;
-};
-
-/// @brief A sparse Cholesky factor by columns, with its elimination order.
+/// Lower factor by columns, rows in elimination positions: P L_G P^T ~ L L^T,
+/// where `order[k]` is the vertex eliminated at step k.
 template <typename Float = double, std::integral Index = std::size_t>
 struct cholesky_factor {
-    std::vector<factor_column<Float, Index>> columns;
+    struct entry { Index row{}; Float value{}; };
+    std::vector<std::vector<entry>> columns;
     std::vector<Index> order;
 };
-
-/// @brief Add an undirected edge of weight `weight` between `u` and `v`.
-template <typename Float = double, std::integral Index = std::size_t>
-inline void add_edge(adjacency_list<Float, Index> &G, Index u, Index v, Float weight) {
-    G[u].push_back({v, weight, 1});
-    G[v].push_back({u, weight, 1});
-}
-
-/// @brief The entry at (`row`, `col`) of a factor, or zero.
-template <typename Float = double, std::integral Index = std::size_t>
-inline Float get_entry(const cholesky_factor<Float, Index> &F, Index row, Index col) {
-    if (col >= F.columns.size()) {
-        return static_cast<Float>(0);
-    }
-    for (const auto &entry : F.columns[col].entries) {
-        if (entry.row == row) {
-            return entry.value;
-        }
-    }
-    return static_cast<Float>(0);
-}
-
 } // namespace approxchol

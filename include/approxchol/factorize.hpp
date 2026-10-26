@@ -1,236 +1,79 @@
-/// @file approxchol/factorize.hpp
-/// @brief Randomized approximate Cholesky (ApproxChol) of Laplacian and SDD matrices.
+/// @file approxchol/factorize.hpp  AC/AC2 of Gao, Kyng, Spielman (2023), arXiv:2303.00709.
 #pragma once
-
-#include "approxchol/clique.hpp"
 #include "approxchol/degree_queue.hpp"
 #include "approxchol/types.hpp"
-
+#include <algorithm>
 #include <cmath>
-#include <concepts>
-#include <cstdint>
-#include <optional>
-#include <random>
-#include <stdexcept>
-#include <type_traits>
-#include <utility>
-#include <vector>
-
 namespace approxchol {
-
-/// Select the connectivity-preserving approximate elimination of Gao, Kyng,
-/// and Spielman, "Robust and Practical Solution of Laplacian Equations by
-/// Approximate Elimination" (2023), arXiv:2303.00709.
-namespace gao_kyng_spielman_2023 {
-
-struct ac_t {};
-struct ac2_t {};
-/// @brief Select the AC clique sampler, one sample per edge.
-inline constexpr ac_t ac{};
-/// @brief Select the AC2 clique sampler, two samples per edge.
-inline constexpr ac2_t ac2{};
-
-} // namespace gao_kyng_spielman_2023
-
-namespace detail {
-
-template <class T>
-concept gks_2023_algorithm = std::same_as<std::remove_cvref_t<T>, gao_kyng_spielman_2023::ac_t> ||
-                             std::same_as<std::remove_cvref_t<T>, gao_kyng_spielman_2023::ac2_t>;
-
-template <gks_2023_algorithm Algorithm>
-inline constexpr std::size_t gks_2023_samples =
-    std::same_as<std::remove_cvref_t<Algorithm>, gao_kyng_spielman_2023::ac2_t> ? 2 : 1;
-
-template <typename Float, std::integral Index>
-inline void write_column(Index v, Index step, Float total_weight,
-                         const std::vector<neighbor<Float, Index>> &nbr,
-                         cholesky_factor<Float, Index> &factor) {
-    const Float sqrt_total = std::sqrt(total_weight);
-
-    auto &col_entries = factor.columns[step].entries;
-    col_entries.reserve(nbr.size() + 1);
-    col_entries.push_back({v, sqrt_total});
-    for (const auto &n_info : nbr) {
-        col_entries.push_back({n_info.to, -n_info.weight / sqrt_total});
+/// Eliminate in minimum-degree order. Each eliminated vertex's clique is replaced by
+/// `samples` draws per neighbor (1 = AC, 2 = AC2), or kept whole when `exact_mode`.
+template <typename Float, std::integral Index, typename Rng>
+cholesky_factor<Float, Index> factorize(adjacency_list<Float, Index> G, Index samples,
+                                        bool exact_mode, Rng &rng) {
+    const Index n = static_cast<Index>(G.size());
+    degree_queue<Index> q(n);
+    for (Index i = 0; i < n; ++i) {
+        Index d = 0;
+        for (auto &e : G[i]) d += (e.count = exact_mode ? 1 : static_cast<std::uint8_t>(samples));
+        q.insert(i, d);
     }
-}
-
-template <typename Float, std::integral Index>
-inline void permute_rows(cholesky_factor<Float, Index> &factor) {
-    const Index n = static_cast<Index>(factor.order.size());
-    std::vector<Index> position(n);
-
+    auto link = [&](Index u, Index v, Float w) {
+        G[u].push_back({v, w, 1}), G[v].push_back({u, w, 1});
+        q.rekey(u, q.degree[u] + 1), q.rekey(v, q.degree[v] + 1);
+    };
+    std::vector<std::uint8_t> done(n, 0);
+    std::vector<edge<Float, Index>> star, nbr;
+    std::uniform_real_distribution<Float> unit(0, 1);
+    cholesky_factor<Float, Index> F;
+    F.columns.resize(n);
     for (Index step = 0; step < n; ++step) {
-        position[factor.order[step]] = step;
-    }
-
-    for (Index step = 0; step < n; ++step) {
-        for (auto &entry : factor.columns[step].entries) {
-            entry.row = position[entry.row];
+        const Index v = q.pop_min();
+        F.order.push_back(v);
+        star.clear(), nbr.clear();
+        for (const auto &e : G[v])
+            if (!done[e.to]) star.push_back(e), q.rekey(e.to, q.degree[e.to] - e.count);
+        G[v] = {}, done[v] = 1;
+        std::ranges::sort(star, {}, &edge<Float, Index>::to); // merge parallel edges
+        Float total = 0;
+        for (const auto &e : star) {
+            total += e.weight;
+            if (nbr.empty() || nbr.back().to != e.to) nbr.push_back(e);
+            else nbr.back().weight += e.weight, nbr.back().count = std::min(255, nbr.back().count + e.count);
         }
-    }
-}
-
-} // namespace detail
-
-/// @brief How the star-mesh clique left by each elimination is approximated.
-enum class clique_sampler : std::uint8_t {
-    exact,    ///< Keep the full clique. Correct, and densifies.
-    gks_2023, ///< Gao--Kyng--Spielman AC/AC2 connectivity-preserving sampler.
-    tree,     ///< A random spanning tree of the clique, reweighted to stay unbiased.
-};
-
-/// Factorize a multigraph Laplacian into approximate or exact Cholesky factor \f$L L^T\f$.
-template <typename Float = double, std::integral Index = std::size_t, typename Rng = rng64,
-          typename Queue = basic_degree_queue<Index>>
-inline cholesky_factor<Float, Index> factorize(const adjacency_list<Float, Index> &input_G,
-                                               std::type_identity_t<Index> samples = 1,
-                                               bool exact_mode = false, Rng *rng = nullptr,
-                                               clique_sampler sampler = clique_sampler::gks_2023,
-                                               std::optional<Index> pinned_vertex = std::nullopt) {
-    if (exact_mode) {
-        sampler = clique_sampler::exact;
-    }
-    const Index n = static_cast<Index>(input_G.size());
-    if (pinned_vertex && *pinned_vertex >= n) {
-        throw std::out_of_range("factorize: pinned vertex is outside the graph");
-    }
-    adjacency_list<Float, Index> G = input_G;
-
-    if (samples > 1 && !exact_mode) {
-        for (auto &row : G) {
-            for (auto &e : row) {
-                e.count = static_cast<std::uint8_t>(samples);
+        if (step + 1 == n || total <= 0) continue; // the last vertex spans the nullspace
+        const Float s = std::sqrt(total);
+        F.columns[step].push_back({v, s});
+        for (const auto &e : nbr) F.columns[step].push_back({e.to, -e.weight / s});
+        if (exact_mode) {
+            for (std::size_t a = 0; a < nbr.size(); ++a)
+                for (std::size_t b = a + 1; b < nbr.size(); ++b)
+                    link(nbr[a].to, nbr[b].to, nbr[a].weight * nbr[b].weight / total);
+            continue;
+        }
+        // Each lighter neighbor draws partners among the heavier ones in proportion to
+        // weight, reweighted so the expected Schur complement is exact.
+        std::ranges::sort(nbr, {}, &edge<Float, Index>::weight);
+        Float rest = total;
+        for (std::size_t a = 0; a + 1 < nbr.size() && (rest -= nbr[a].weight) > 0; ++a) {
+            const Index draws = std::min<Index>(nbr[a].count, samples);
+            const Float w = nbr[a].weight / draws * (rest / total);
+            for (Index d = 0; d < draws; ++d) {
+                Float target = unit(rng) * rest;
+                std::size_t b = a + 1;
+                while (b + 1 < nbr.size() && target >= nbr[b].weight) target -= nbr[b++].weight;
+                link(nbr[a].to, nbr[b].to, w);
             }
         }
     }
-
-    Queue q(n);
-    for (Index i = 0; i < n; ++i) {
-        Index d = 0;
-        for (const auto &e : G[i]) {
-            d += e.count;
-        }
-        q.insert(i, d);
-    }
-    std::vector<std::uint8_t> done(n, 0);
-
-    cholesky_factor<Float, Index> factor;
-    factor.columns.resize(n);
-    factor.order.reserve(n);
-
-    std::vector<graph_edge<Float, Index>> star_buf;
-    star_buf.reserve(128);
-
-    std::vector<neighbor<Float, Index>> nbr_buf;
-    nbr_buf.reserve(128);
-
-    Rng local_rng(42);
-    Rng &active_rng = rng ? *rng : local_rng;
-
-    for (Index step = 0; step + 1 < n; ++step) {
-        Index v = q.pop_min();
-        if (pinned_vertex && v == *pinned_vertex) {
-            const Index pinned_degree = q.degree_of(v);
-            v = q.pop_min();
-            q.insert(*pinned_vertex, pinned_degree);
-        }
-        factor.order.push_back(v);
-
-        Float total_weight = collect_neighbors(v, G, done, q, star_buf, nbr_buf);
-        done[v] = 1;
-
-        if (total_weight <= static_cast<Float>(0)) {
-            continue;
-        }
-
-        detail::write_column(v, step, total_weight, nbr_buf, factor);
-
-        switch (sampler) {
-        case clique_sampler::exact:
-            add_exact_clique(G, q, nbr_buf, total_weight);
-            break;
-        case clique_sampler::tree:
-            sample_clique_tree(G, q, nbr_buf, total_weight, active_rng,
-                               static_cast<std::size_t>(samples));
-            break;
-        case clique_sampler::gks_2023:
-            sample_clique(G, q, nbr_buf, total_weight, samples, active_rng);
-            break;
-        }
-    }
-
-    // Nullspace vertex
-    const Index last_v = q.pop_min();
-    if (pinned_vertex && last_v != *pinned_vertex) {
-        throw std::runtime_error("factorize: failed to retain pinned vertex");
-    }
-    factor.order.push_back(last_v);
-
-    detail::permute_rows(factor);
-
-    return factor;
+    std::vector<Index> position(n);
+    for (Index k = 0; k < n; ++k) position[F.order[k]] = k;
+    for (auto &column : F.columns) for (auto &e : column) e.row = position[e.row];
+    return F;
 }
 
-/// Apply the Gao--Kyng--Spielman AC/AC2 clique sampler explicitly.
-template <typename Float = double, std::integral Index = std::size_t, typename Rng = rng64,
-          typename Queue = basic_degree_queue<Index>,
-          detail::gks_2023_algorithm Algorithm = gao_kyng_spielman_2023::ac_t>
-inline cholesky_factor<Float, Index> factorize(const adjacency_list<Float, Index> &G, Algorithm,
-                                               Rng *rng = nullptr,
-                                               std::optional<Index> pinned_vertex = std::nullopt) {
-    return factorize<Float, Index, Rng, Queue>(
-        G, static_cast<Index>(detail::gks_2023_samples<Algorithm>), false, rng,
-        clique_sampler::gks_2023, pinned_vertex);
-}
-
-/// Gao--Kyng--Spielman AC factorizer with one sample per original entry.
-/// @return `cholesky_factor`: the sparse approximate factor, consumed by `approxchol::solve`.
-template <typename Float = double, std::integral Index = std::size_t>
-inline cholesky_factor<Float, Index> ac1(const adjacency_list<Float, Index> &G,
-                                         std::uint64_t seed = 42) {
-    rng64 rng(seed);
-    return factorize<Float, Index, rng64>(G, gao_kyng_spielman_2023::ac, &rng);
-}
-
-template <typename Float = double, std::integral Index = std::size_t, typename Rng = rng64>
-inline cholesky_factor<Float, Index> ac1(const adjacency_list<Float, Index> &G, Rng &rng) {
-    return factorize<Float, Index, Rng>(G, gao_kyng_spielman_2023::ac, &rng);
-}
-
-/// Gao--Kyng--Spielman AC2 factorizer with two samples per original entry.
-/// @return `cholesky_factor`: the sparse approximate factor, consumed by `approxchol::solve`.
-template <typename Float = double, std::integral Index = std::size_t>
-inline cholesky_factor<Float, Index> ac2(const adjacency_list<Float, Index> &G,
-                                         std::uint64_t seed = 42) {
-    rng64 rng(seed);
-    return factorize<Float, Index, rng64>(G, gao_kyng_spielman_2023::ac2, &rng);
-}
-
-template <typename Float = double, std::integral Index = std::size_t, typename Rng = rng64>
-inline cholesky_factor<Float, Index> ac2(const adjacency_list<Float, Index> &G, Rng &rng) {
-    return factorize<Float, Index, Rng>(G, gao_kyng_spielman_2023::ac2, &rng);
-}
-
-/// @brief Spanning-tree clique sampler: one reweighted random tree per elimination.
-///
-/// Keeps \f$d-1\f$ edges per eliminated vertex instead of \f$d\f$, drawn from a
-/// negatively dependent distribution rather than independently. See
-/// `sample_clique_tree` for why the reweighting needs no
-/// effective-resistance solve.
-/// @return `cholesky_factor`: the sparse approximate factor, consumed by `approxchol::solve`.
-template <typename Float = double, std::integral Index = std::size_t, typename Rng = rng64>
-inline cholesky_factor<Float, Index> act(const adjacency_list<Float, Index> &G, Rng &rng,
-                                         std::type_identity_t<Index> trees = 1) {
-    return factorize<Float, Index, Rng>(G, trees, false, &rng, clique_sampler::tree);
-}
-
-/// Exact sparse Cholesky factorization via full star-mesh elimination.
-/// @return `cholesky_factor`: the sparse approximate factor, consumed by `approxchol::solve`.
-template <typename Float = double, std::integral Index = std::size_t>
-inline cholesky_factor<Float, Index> exact(const adjacency_list<Float, Index> &G) {
-    return factorize<Float, Index, rng64>(G, 1, true, nullptr);
-}
-
+template <class F, std::integral I, class R> auto ac1(const adjacency_list<F, I> &G, R &r) { return factorize(G, I{1}, false, r); }
+template <class F, std::integral I, class R> auto ac2(const adjacency_list<F, I> &G, R &r) { return factorize(G, I{2}, false, r); }
+template <class F, std::integral I> auto ac1(const adjacency_list<F, I> &G, std::uint64_t seed = 42) { rng64 r(seed); return ac1(G, r); }
+template <class F, std::integral I> auto ac2(const adjacency_list<F, I> &G, std::uint64_t seed = 42) { rng64 r(seed); return ac2(G, r); }
+template <class F, std::integral I> auto exact(const adjacency_list<F, I> &G) { rng64 r; return factorize(G, I{1}, true, r); }
 } // namespace approxchol
