@@ -28,6 +28,34 @@ auto F = approxchol::ac2(G, rng);                   // approximate factor, P L P
 std::vector<double> x = approxchol::solve(F, b);    // apply (L L^T)^{-1} b
 ```
 
+## Bring your own graph
+
+Any type satisfying `approxchol::weighted_graph` works directly: a random-access
+range of neighbor lists whose edges have `.to` and `.weight`.
+
+```cpp
+template <class E>
+concept weighted_edge = requires(const E &e) {
+    { e.to } -> std::convertible_to<std::size_t>;
+    { e.weight } -> std::convertible_to<double>;
+};
+
+template <class G>
+concept weighted_graph =
+    std::ranges::random_access_range<G> && std::ranges::sized_range<G> &&
+    std::ranges::input_range<std::ranges::range_reference_t<G>> &&
+    weighted_edge<std::ranges::range_value_t<std::ranges::range_reference_t<G>>>;
+```
+
+```cpp
+struct my_edge { int to; float weight; };
+std::vector<std::vector<my_edge>> g = /* both directions of every edge */;
+
+auto F = approxchol::ac2(g, rng);   // converted once, then factorized
+```
+
+`to_adjacency_list(g)` does the conversion explicitly.
+
 ## Factorizations
 
 | Call | What |

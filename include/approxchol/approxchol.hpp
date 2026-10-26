@@ -3,6 +3,7 @@
 #pragma once
 
 #include "approxchol/clique.hpp"
+#include "approxchol/concepts.hpp"
 #include "approxchol/degree_queue.hpp"
 #include "approxchol/factorize.hpp"
 #include "approxchol/multigraph.hpp"

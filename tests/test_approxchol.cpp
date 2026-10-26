@@ -259,6 +259,45 @@ void test_pinned_vertex_is_last() {
     std::cout << "test_pinned_vertex_is_last passed\n";
 }
 
+struct user_edge {
+    int to;
+    float weight;
+};
+
+void test_user_graph_concept() {
+    static_assert(approxchol::weighted_graph<std::vector<std::vector<user_edge>>>);
+    static_assert(!approxchol::weighted_graph<std::vector<int>>);
+
+    const std::size_t rows = 4;
+    const std::size_t cols = 4;
+    auto G = make_grid_laplacian<double, std::size_t>(rows, cols);
+
+    std::vector<std::vector<user_edge>> mine(G.size());
+    for (std::size_t u = 0; u < G.size(); ++u) {
+        for (const auto &e : G[u]) {
+            mine[u].push_back({static_cast<int>(e.to), static_cast<float>(e.weight)});
+        }
+    }
+
+    auto F_mine = approxchol::exact(mine);
+    auto F_ref = approxchol::exact(G);
+    check(F_mine.order == F_ref.order, "User-graph exact factor ordering differs");
+    for (std::size_t j = 0; j < F_ref.columns.size(); ++j) {
+        const auto &a = F_mine.columns[j].entries;
+        const auto &b = F_ref.columns[j].entries;
+        check(a.size() == b.size(), "User-graph exact factor sparsity differs");
+        for (std::size_t k = 0; k < a.size(); ++k) {
+            check(a[k].row == b[k].row && std::abs(a[k].value - b[k].value) < 1e-12,
+                  "User-graph exact factor values differ");
+        }
+    }
+
+    approxchol::rng64 rng(7);
+    auto F_ac2 = approxchol::ac2(mine, rng);
+    check(F_ac2.columns.size() == G.size(), "User-graph AC2 factor column count mismatch");
+    std::cout << "test_user_graph_concept passed\n";
+}
+
 } // namespace
 
 int main() {
@@ -270,6 +309,7 @@ int main() {
         test_full_factor_expectation();
         test_tree_sampler_expectation();
         test_pinned_vertex_is_last();
+        test_user_graph_concept();
         std::cout << "All tests passed.\n";
     } catch (const std::exception &e) {
         std::cerr << "Test failed: " << e.what() << '\n';
