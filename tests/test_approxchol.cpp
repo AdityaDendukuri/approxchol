@@ -10,8 +10,8 @@ namespace {
 
 template <typename Float, typename Index>
 Float get_entry(const approxchol::cholesky_factor<Float, Index> &F, Index row, Index col) {
-    for (const auto &e : F.columns[col])
-        if (e.row == row) return e.value;
+    for (std::size_t e = F.start[col]; e < F.start[col + 1]; ++e)
+        if (F.row[e] == row) return F.value[e];
     return Float(0);
 }
 
@@ -105,8 +105,8 @@ void test_ac1_and_ac2_factorization() {
     auto F1 = approxchol::ac1(G, /*seed=*/42);
     auto F2 = approxchol::ac2(G, /*seed=*/42);
 
-    check(F1.columns.size() == n, "AC1 factor column count mismatch");
-    check(F2.columns.size() == n, "AC2 factor column count mismatch");
+    check(F1.start.size() == n + 1, "AC1 factor column count mismatch");
+    check(F2.start.size() == n + 1, "AC2 factor column count mismatch");
 
     std::cout << "test_ac1_and_ac2_factorization passed\n";
 }
@@ -121,7 +121,7 @@ void test_templated_types_float_and_uint32() {
     std::mt19937 custom_rng(777);
     auto F = approxchol::ac2(G, custom_rng);
 
-    check(F.columns.size() == n, "Templated factor column count mismatch");
+    check(F.start.size() == n + 1, "Templated factor column count mismatch");
     std::cout << "test_templated_types_float_and_uint32 passed\n";
 }
 
@@ -232,19 +232,15 @@ void test_user_graph_concept() {
     auto F_mine = approxchol::exact(mine);
     auto F_ref = approxchol::exact(G);
     check(F_mine.order == F_ref.order, "User-graph exact factor ordering differs");
-    for (std::size_t j = 0; j < F_ref.columns.size(); ++j) {
-        const auto &a = F_mine.columns[j];
-        const auto &b = F_ref.columns[j];
-        check(a.size() == b.size(), "User-graph exact factor sparsity differs");
-        for (std::size_t k = 0; k < a.size(); ++k) {
-            check(a[k].row == b[k].row && std::abs(a[k].value - b[k].value) < 1e-12,
-                  "User-graph exact factor values differ");
-        }
-    }
+    check(F_mine.start == F_ref.start && F_mine.row == F_ref.row,
+          "User-graph exact factor sparsity differs");
+    for (std::size_t e = 0; e < F_ref.value.size(); ++e)
+        check(std::abs(F_mine.value[e] - F_ref.value[e]) < 1e-12,
+              "User-graph exact factor values differ");
 
     approxchol::rng64 rng(7);
     auto F_ac2 = approxchol::ac2(mine, rng);
-    check(F_ac2.columns.size() == G.size(), "User-graph AC2 factor column count mismatch");
+    check(F_ac2.start.size() == G.size() + 1, "User-graph AC2 factor column count mismatch");
     std::cout << "test_user_graph_concept passed\n";
 }
 

@@ -23,8 +23,7 @@ struct degree_queue {
     void rekey(Index v, Index d) { erase(v), insert(v, d); }
     Index pop_min() {
         while (head[low] == none) ++low;
-        const Index v = head[low];
-        return erase(v), v;
+        const Index v = head[low]; return erase(v), v;
     }
 };
 } // namespace approxchol

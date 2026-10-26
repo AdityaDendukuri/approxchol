@@ -24,26 +24,25 @@ cholesky_factor<Float, Index> factorize(adjacency_list<Float, Index> G, Index sa
     std::vector<std::uint8_t> done(n, 0);
     std::vector<edge<Float, Index>> star, nbr;
     std::uniform_real_distribution<Float> unit(0, 1);
-    cholesky_factor<Float, Index> F;
-    F.columns.resize(n);
+    cholesky_factor<Float, Index> F; F.order.reserve(n), star.reserve(128), nbr.reserve(128);
     for (Index step = 0; step < n; ++step) {
         const Index v = q.pop_min();
         F.order.push_back(v);
         star.clear(), nbr.clear();
         for (const auto &e : G[v])
             if (!done[e.to]) star.push_back(e), q.rekey(e.to, q.degree[e.to] - e.count);
-        G[v] = {}, done[v] = 1;
-        std::ranges::sort(star, {}, &edge<Float, Index>::to); // merge parallel edges
+        G[v].clear(), G[v].shrink_to_fit(), done[v] = 1;
+        std::sort(star.begin(), star.end(), [](auto &x, auto &y) { return x.to < y.to; }); // merge parallel edges
         Float total = 0;
         for (const auto &e : star) {
             total += e.weight;
             if (nbr.empty() || nbr.back().to != e.to) nbr.push_back(e);
             else nbr.back().weight += e.weight, nbr.back().count = std::min(255, nbr.back().count + e.count);
         }
-        if (step + 1 == n || total <= 0) continue; // the last vertex spans the nullspace
-        const Float s = std::sqrt(total);
-        F.columns[step].push_back({v, s});
-        for (const auto &e : nbr) F.columns[step].push_back({e.to, -e.weight / s});
+        if (step + 1 == n || total <= 0) { F.start.push_back(F.row.size()); continue; } // nullspace
+        const Float s = std::sqrt(total); F.row.push_back(v), F.value.push_back(s);
+        for (const auto &e : nbr) F.row.push_back(e.to), F.value.push_back(-e.weight / s);
+        F.start.push_back(F.row.size());
         if (exact_mode) {
             for (std::size_t a = 0; a < nbr.size(); ++a)
                 for (std::size_t b = a + 1; b < nbr.size(); ++b)
@@ -52,7 +51,7 @@ cholesky_factor<Float, Index> factorize(adjacency_list<Float, Index> G, Index sa
         }
         // Each lighter neighbor draws partners among the heavier ones in proportion to
         // weight, reweighted so the expected Schur complement is exact.
-        std::ranges::sort(nbr, {}, &edge<Float, Index>::weight);
+        std::sort(nbr.begin(), nbr.end(), [](auto &x, auto &y) { return x.weight < y.weight; });
         Float rest = total;
         for (std::size_t a = 0; a + 1 < nbr.size() && (rest -= nbr[a].weight) > 0; ++a) {
             const Index draws = std::min<Index>(nbr[a].count, samples);
@@ -67,10 +66,9 @@ cholesky_factor<Float, Index> factorize(adjacency_list<Float, Index> G, Index sa
     }
     std::vector<Index> position(n);
     for (Index k = 0; k < n; ++k) position[F.order[k]] = k;
-    for (auto &column : F.columns) for (auto &e : column) e.row = position[e.row];
+    for (auto &r : F.row) r = position[r];
     return F;
 }
-
 template <class F, std::integral I, class R> auto ac1(const adjacency_list<F, I> &G, R &r) { return factorize(G, I{1}, false, r); }
 template <class F, std::integral I, class R> auto ac2(const adjacency_list<F, I> &G, R &r) { return factorize(G, I{2}, false, r); }
 template <class F, std::integral I> auto ac1(const adjacency_list<F, I> &G, std::uint64_t seed = 42) { rng64 r(seed); return ac1(G, r); }
